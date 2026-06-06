@@ -1,4 +1,4 @@
-const API_URL = "har-end-to-end-project-production.up.railway.app/predict"; 
+const API_URL = "https://har-end-to-end-project-production.up.railway.app/predict";
 
 // const API_URL = "https://your-actual-railway-url.up.railway.app/predict"; 
 
