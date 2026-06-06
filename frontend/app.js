@@ -1,16 +1,9 @@
-const API_URL = "har-end-to-end-project-production.up.railway.app"; 
+const API_URL = "har-end-to-end-project-production.up.railway.app/predict"; 
+
+// const API_URL = "https://your-actual-railway-url.up.railway.app/predict"; 
 
 document.getElementById('predictBtn').addEventListener('click', async () => {
-    const loadingText = document.getElementById('loading');
-    const resultBox = document.getElementById('resultBox');
-    const activityText = document.getElementById('activityText');
-
-    // Show loading state
-    loadingText.classList.remove('hidden');
-    resultBox.classList.add('hidden');
-
-    // Simulate generating 561 sensor data points (like a wearable device would)
-    // In a real app, this would be live data from an accelerometer
+    // Generate exactly 561 random numbers between -1 and 1
     const dummySensorData = Array.from({length: 561}, () => Math.random() * 2 - 1);
 
     try {
@@ -21,17 +14,9 @@ document.getElementById('predictBtn').addEventListener('click', async () => {
         });
 
         const data = await response.json();
-
-        // Update UI with the result
-        activityText.innerText = data.activity;
-        loadingText.classList.add('hidden');
-        resultBox.classList.remove('hidden');
+        document.getElementById('activityText').innerText = data.activity;
 
     } catch (error) {
-        console.error("Error communicating with backend:", error);
-        activityText.innerText = "Error (Check Console)";
-        activityText.style.color = "red";
-        loadingText.classList.add('hidden');
-        resultBox.classList.remove('hidden');
+        console.error("Error:", error);
     }
 });
