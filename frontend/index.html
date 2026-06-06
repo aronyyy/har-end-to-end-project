@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAR ML Prediction</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Human Activity Recognition Engine</h1>
+        <p>This UI sends 561 raw sensor readings to a FastAPI microservice powered by an optimized Support Vector Machine.</p>
+        
+        <div class="card">
+            <button id="predictBtn">Simulate Sensor Data & Predict</button>
+            
+            <div id="loading" class="hidden">Running inference on Railway...</div>
+            
+            <div id="resultBox" class="hidden">
+                <h3>Predicted Activity:</h3>
+                <h2 id="activityText">--</h2>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
