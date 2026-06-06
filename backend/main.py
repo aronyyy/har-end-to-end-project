@@ -6,7 +6,6 @@ import numpy as np
 
 app = FastAPI(title="HAR Prediction API")
 
-# Allow the frontend to talk to this backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -15,7 +14,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# The magic serialization step: Loads the scaler, PCA, and SVM instantly
 print("Loading Champion Pipeline...")
 model = joblib.load("models/har_pipeline_champion.pkl")
 print("Pipeline loaded and ready!")
@@ -23,15 +21,30 @@ print("Pipeline loaded and ready!")
 class SensorData(BaseModel):
     features: list[float]
 
+# SDE Step: Map the model's numerical output back to human-readable text
+ACTIVITY_MAP = {
+    1: 'Walking', 
+    2: 'Walking Upstairs', 
+    3: 'Walking Downstairs',
+    4: 'Sitting', 
+    5: 'Standing', 
+    6: 'Laying'
+}
+
 @app.post("/predict")
 def predict_activity(data: SensorData):
     if len(data.features) != 561:
         return {"error": f"Expected 561 features, got {len(data.features)}"}
         
-    # Convert list to numpy array and reshape for a single prediction
     input_data = np.array(data.features).reshape(1, -1)
     
-    # The pipeline handles all preprocessing automatically
+    # Model predicts a numpy array e.g., [4]
     prediction = model.predict(input_data)
     
-    return {"activity": prediction[0]}
+    # THE FIX: Convert numpy.int64 to a standard Python integer
+    pred_class = int(prediction[0])
+    
+    # Get the text label, defaulting to "Unknown" if something goes wrong
+    activity_str = ACTIVITY_MAP.get(pred_class, "Unknown")
+    
+    return {"activity": activity_str}
