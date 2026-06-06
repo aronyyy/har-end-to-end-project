@@ -1,5 +1,4 @@
-// ⚠️ PASTE YOUR RAILWAY URL HERE (Keep the /predict at the end)
-const API_URL = "YOUR_RAILWAY_URL_HERE/predict"; 
+const API_URL = "har-end-to-end-project-production.up.railway.app"; 
 
 document.getElementById('predictBtn').addEventListener('click', async () => {
     const loadingText = document.getElementById('loading');
