@@ -192,8 +192,29 @@ function drawPCAScree(canvas) {
     ctx.fillText('principal components →', W/2, H);
 }
 
-// SVM confidence bars
-function drawSVMBars(canvas, highlightIdx) {
+// Generate realistic SVM-like confidence scores.
+// Real SVM on HAR: winning class ~88–98%, rest share the remainder.
+function generateSVMScores(highlightIdx, numClasses = 6) {
+    // Winner gets a high score: 88–98%
+    const winnerPct = 88 + Math.random() * 10;
+    const remainder = 100 - winnerPct;
+
+    // Distribute the remainder among losers using a Dirichlet-like split
+    const losers = numClasses - 1;
+    const weights = Array.from({ length: losers }, () => Math.random());
+    const wSum = weights.reduce((a, b) => a + b, 0);
+    const loserPcts = weights.map(w => (w / wSum) * remainder);
+
+    const pcts = [];
+    let li = 0;
+    for (let i = 0; i < numClasses; i++) {
+        pcts.push(i === highlightIdx ? winnerPct : loserPcts[li++]);
+    }
+    return pcts; // array of percentages summing to 100
+}
+
+// SVM confidence bars — scores are true percentages (sum to 100)
+function drawSVMBars(canvas, highlightIdx, scores = null) {
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
@@ -201,47 +222,52 @@ function drawSVMBars(canvas, highlightIdx) {
     const labels = ['Walk', 'Up', 'Down', 'Sit', 'Stand', 'Lay'];
     const colors = ['#5b8dee','#e8855b','#a05bee','#5bdea4','#dee05b','#de5b8d'];
 
-    // Generate realistic confidence-like scores
-    const scores = labels.map((_, i) => {
-        if (i === highlightIdx) return 0.75 + Math.random() * 0.2;
-        return Math.random() * 0.3;
-    });
+    // Use provided scores, or generate scanning (random highlight) scores
+    const pcts = scores || generateSVMScores(highlightIdx);
+    const maxPct = Math.max(...pcts); // for bar width scaling
 
     const rowH = H / labels.length;
-    const maxScore = Math.max(...scores);
+    // Leave right margin so the "xx%" label never clips
+    const barZone = W * 0.60;
+    const barStart = W * 0.30;
+    const labelMargin = 6;
 
     labels.forEach((lbl, i) => {
-        const barW = (scores[i] / maxScore) * (W * 0.65);
+        const barW = (pcts[i] / maxPct) * barZone;
         const y = i * rowH;
         const mid = y + rowH / 2;
         const rgb = hexToRgb(colors[i]);
+        const isWinner = i === highlightIdx;
 
-        // Label
-        ctx.fillStyle = i === highlightIdx ? colors[i] : 'rgba(255,255,255,0.35)';
-        ctx.font = `${i === highlightIdx ? '700' : '400'} 10px Space Mono, monospace`;
+        // Activity label (left side)
+        ctx.fillStyle = isWinner ? colors[i] : 'rgba(255,255,255,0.35)';
+        ctx.font = `${isWinner ? '700' : '400'} 10px Space Mono, monospace`;
         ctx.textAlign = 'right';
-        ctx.fillText(lbl, W * 0.3, mid + 3.5);
+        ctx.fillText(lbl, barStart - 6, mid + 3.5);
 
         // Bar track
         ctx.fillStyle = 'rgba(255,255,255,0.05)';
         ctx.beginPath();
-        ctx.roundRect(W * 0.32, mid - 5, W * 0.65, 10, 3);
+        ctx.roundRect(barStart, mid - 5, barZone, 10, 3);
         ctx.fill();
 
         // Score bar
-        const grad = ctx.createLinearGradient(W * 0.32, 0, W * 0.32 + barW, 0);
-        grad.addColorStop(0, `rgba(${rgb},0.9)`);
-        grad.addColorStop(1, `rgba(${rgb},0.4)`);
-        ctx.fillStyle = i === highlightIdx ? grad : `rgba(${rgb},0.2)`;
-        ctx.beginPath();
-        ctx.roundRect(W * 0.32, mid - 5, barW, 10, 3);
-        ctx.fill();
+        if (barW > 0) {
+            const grad = ctx.createLinearGradient(barStart, 0, barStart + barW, 0);
+            grad.addColorStop(0, `rgba(${rgb},${isWinner ? 0.95 : 0.5})`);
+            grad.addColorStop(1, `rgba(${rgb},${isWinner ? 0.55 : 0.15})`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.roundRect(barStart, mid - 5, barW, 10, 3);
+            ctx.fill();
+        }
 
-        // Score label
-        ctx.fillStyle = i === highlightIdx ? colors[i] : 'rgba(255,255,255,0.2)';
+        // Percentage label — always outside bar, clamp to track end
+        const labelX = Math.min(barStart + barW + labelMargin, barStart + barZone + labelMargin);
+        ctx.fillStyle = isWinner ? colors[i] : 'rgba(255,255,255,0.25)';
         ctx.textAlign = 'left';
-        ctx.font = '9px Space Mono, monospace';
-        ctx.fillText(`${(scores[i] * 100).toFixed(0)}%`, W * 0.32 + barW + 4, mid + 3.5);
+        ctx.font = `${isWinner ? '700' : '400'} 9px Space Mono, monospace`;
+        ctx.fillText(`${pcts[i].toFixed(1)}%`, labelX, mid + 3.5);
     });
 }
 
@@ -361,26 +387,26 @@ async function animatePipeline(sensorData, predictedActivity) {
 
     // Animate scanning bars
     let scanPass = 0;
+    const svmCanvas = document.getElementById('canvas-svm');
     const scanInterval = setInterval(() => {
-        const randomHL = scanPass < 3 ? Math.floor(Math.random() * 6) : hlIdx;
-        drawSVMBars(document.getElementById('canvas-svm'), randomHL);
-
-        // Flash class pills
-        document.querySelectorAll('.svm-class').forEach(pill => {
-            pill.classList.remove('highlighted');
+        // During scan: pick a random class each frame with its own realistic score distribution
+        const randomHL = Math.floor(Math.random() * 6);
+        drawSVMBars(svmCanvas, randomHL, generateSVMScores(randomHL));
+        document.querySelectorAll('.svm-class').forEach((pill, i) => {
+            pill.classList.toggle('highlighted', i === randomHL);
         });
-        const svmClasses = document.querySelectorAll('.svm-class');
-        if (svmClasses[randomHL]) svmClasses[randomHL].classList.add('highlighted');
         scanPass++;
-    }, 320);
+    }, 300);
 
     await sleep(1300);
     clearInterval(scanInterval);
 
-    // Lock to the real answer
-    drawSVMBars(document.getElementById('canvas-svm'), hlIdx < 0 ? 0 : hlIdx);
+    // Lock to the real answer with stable high-confidence scores
+    const finalHL = hlIdx < 0 ? 0 : hlIdx;
+    const finalScores = generateSVMScores(finalHL);
+    drawSVMBars(svmCanvas, finalHL, finalScores);
     document.querySelectorAll('.svm-class').forEach((pill, i) => {
-        pill.classList.toggle('highlighted', i === hlIdx);
+        pill.classList.toggle('highlighted', i === finalHL);
     });
 
     await sleep(300);
@@ -535,10 +561,66 @@ document.getElementById('resetBtn').addEventListener('click', () => {
     });
 });
 
+// ─── REALISTIC HAR SENSOR SIMULATOR ─────────────────────────────────────────
+// HAR features are grouped: tBodyAcc, tGravityAcc, tBodyAccJerk, tBodyGyro, etc.
+// Each group has time-domain statistical features (mean, std, max, min, etc.)
+// Values are pre-normalised to roughly [-1, 1] with structured correlations.
+function simulateHARData() {
+    const data = new Float64Array(561);
+
+    // Helper: band-limited noise (smoother than pure white noise)
+    const smoothNoise = (n, scale = 1, drift = 0) => {
+        let v = drift;
+        return Array.from({ length: n }, () => {
+            v += (Math.random() - 0.5) * 0.4;
+            v = Math.max(-1, Math.min(1, v));
+            return v * scale;
+        });
+    };
+
+    // Pick a random "base motion" profile (affects mean/std of each sensor)
+    const motionProfiles = [
+        { accMean: 0.1,  accStd: 0.25, gyroMean: 0.05, gyroStd: 0.15, jerk: 0.3  }, // walking
+        { accMean: 0.15, accStd: 0.35, gyroMean: 0.1,  gyroStd: 0.25, jerk: 0.45 }, // upstairs
+        { accMean: 0.12, accStd: 0.3,  gyroMean: 0.08, gyroStd: 0.2,  jerk: 0.4  }, // downstairs
+        { accMean: 0.02, accStd: 0.05, gyroMean: 0.01, gyroStd: 0.03, jerk: 0.05 }, // sitting
+        { accMean: 0.03, accStd: 0.06, gyroMean: 0.02, gyroStd: 0.04, jerk: 0.06 }, // standing
+        { accMean: 0.01, accStd: 0.02, gyroMean: 0.005,gyroStd: 0.01, jerk: 0.02 }, // laying
+    ];
+    const p = motionProfiles[Math.floor(Math.random() * motionProfiles.length)];
+
+    // Feature group sizes (matching UCIHAR 561-feature layout)
+    const groups = [
+        // [start, count, meanBias, stdScale]
+        [  0,  40, p.accMean,   p.accStd   ],   // tBodyAcc-XYZ stats
+        [ 40,  40, 0.5,         p.accStd   ],   // tGravityAcc-XYZ stats
+        [ 80,  40, p.accMean*2, p.jerk     ],   // tBodyAccJerk-XYZ stats
+        [120,  40, p.gyroMean,  p.gyroStd  ],   // tBodyGyro-XYZ stats
+        [160,  40, p.gyroMean,  p.jerk*0.7 ],   // tBodyGyroJerk-XYZ stats
+        [200,  13, p.accMean,   p.accStd   ],   // tBodyAccMag stats
+        [213,  13, 0.5,         p.accStd   ],   // tGravityAccMag stats
+        [226,  13, p.accMean,   p.jerk     ],   // tBodyAccJerkMag stats
+        [239,  13, p.gyroMean,  p.gyroStd  ],   // tBodyGyroMag stats
+        [252,  13, p.gyroMean,  p.jerk     ],   // tBodyGyroJerkMag stats
+        [265, 130, p.accMean,   p.accStd*1.2],  // fBodyAcc (FFT) XYZ
+        [395,  79, p.gyroMean,  p.gyroStd*1.2], // fBodyGyro (FFT)
+        [474,  87, p.accMean,   p.accStd   ],   // angle features
+    ];
+
+    for (const [start, count, bias, scale] of groups) {
+        const wave = smoothNoise(count, scale, bias);
+        for (let i = 0; i < count && start + i < 561; i++) {
+            // Clamp to [-1, 1] like the real dataset
+            data[start + i] = Math.max(-1, Math.min(1, wave[i]));
+        }
+    }
+
+    return Array.from(data);
+}
+
 // ─── EVENT LISTENERS ─────────────────────────────────────────────────────────
 document.getElementById('predictBtn').addEventListener('click', () => {
-    const dummySensorData = Array.from({ length: 561 }, () => Math.random() * 2 - 1);
-    processData(dummySensorData);
+    processData(simulateHARData());
 });
 
 document.getElementById('predictCsvBtn').addEventListener('click', () => {
