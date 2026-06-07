@@ -38,13 +38,33 @@ def predict_activity(data: SensorData):
         
     input_data = np.array(data.features).reshape(1, -1)
     
-    # Model predicts a numpy array e.g., [4]
+    # Predict the winning class
     prediction = model.predict(input_data)
-    
-    # THE FIX: Convert numpy.int64 to a standard Python integer
     pred_class = int(prediction[0])
-    
-    # Get the text label, defaulting to "Unknown" if something goes wrong
     activity_str = ACTIVITY_MAP.get(pred_class, "Unknown")
-    
-    return {"activity": activity_str}
+
+    # --- Real confidence scores ---
+    # Try predict_proba first (only works if SVM was trained with probability=True)
+    scores = {}
+    try:
+        proba = model.predict_proba(input_data)[0]          # shape: (6,)
+        classes = model.classes_                             # e.g. [1,2,3,4,5,6]
+        scores = {
+            ACTIVITY_MAP[int(c)]: round(float(p) * 100, 1)
+            for c, p in zip(classes, proba)
+            if int(c) in ACTIVITY_MAP
+        }
+    except AttributeError:
+        # Fallback: use decision_function (raw SVM margins, not probabilities)
+        # Shift so all values are positive, then normalise to sum to 100
+        decision = model.decision_function(input_data)[0]   # shape: (6,)
+        classes = model.classes_
+        shifted = decision - decision.min()                  # all >= 0
+        total = shifted.sum() or 1.0
+        scores = {
+            ACTIVITY_MAP[int(c)]: round(float(v / total) * 100, 1)
+            for c, v in zip(classes, shifted)
+            if int(c) in ACTIVITY_MAP
+        }
+
+    return {"activity": activity_str, "scores": scores}

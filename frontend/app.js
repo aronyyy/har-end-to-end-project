@@ -455,9 +455,10 @@ async function processData(sensorData) {
         // Now wait for the API if it hasn't finished yet
         const apiData = await apiPromise;
         const activity = apiData.activity || 'Unknown';
+        const realScores = apiData.scores || null; // real per-class scores from backend
 
-        // Run the final SVM step with the real result
-        await runSVMStep(activity);
+        // Run the final SVM step with the real result + real scores
+        await runSVMStep(activity, realScores);
 
         showResult(activity);
 
@@ -513,26 +514,36 @@ async function runPartialAnimation(sensorData) {
     doneConnector(2);
 }
 
-async function runSVMStep(predictedActivity) {
+async function runSVMStep(predictedActivity, realScores = null) {
     activateStep('step-svm');
     const activityNames = ['Walking','Walking Upstairs','Walking Downstairs','Sitting','Standing','Laying'];
     const hlIdx = activityNames.findIndex(a => a === predictedActivity);
 
-    let scanPass = 0;
+    // Convert the API's {ActivityName: pct} dict into an ordered array matching activityNames
+    // Used only after the scan phase — these are the real numbers from the model
+    function apiScoresToArray(scoresObj) {
+        if (!scoresObj) return null;
+        return activityNames.map(name => scoresObj[name] ?? 0);
+    }
+
+    const svmCanvas = document.getElementById('canvas-svm');
+
+    // Scan phase: animate with fake scores so it looks like inference is happening
     const scanInterval = setInterval(() => {
-        const randomHL = scanPass < 3 ? Math.floor(Math.random() * 6) : hlIdx;
-        drawSVMBars(document.getElementById('canvas-svm'), randomHL);
+        const randomHL = Math.floor(Math.random() * 6);
+        drawSVMBars(svmCanvas, randomHL, generateSVMScores(randomHL));
         document.querySelectorAll('.svm-class').forEach((pill, i) => {
             pill.classList.toggle('highlighted', i === randomHL);
         });
-        scanPass++;
-    }, 320);
+    }, 300);
 
-    await sleep(1400);
+    await sleep(1300);
     clearInterval(scanInterval);
 
+    // Lock phase: use REAL scores from the API if available, else fall back to fake
     const finalHL = hlIdx < 0 ? 0 : hlIdx;
-    drawSVMBars(document.getElementById('canvas-svm'), finalHL);
+    const finalScores = apiScoresToArray(realScores) || generateSVMScores(finalHL);
+    drawSVMBars(svmCanvas, finalHL, finalScores);
     document.querySelectorAll('.svm-class').forEach((pill, i) => {
         pill.classList.toggle('highlighted', i === finalHL);
     });
