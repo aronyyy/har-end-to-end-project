@@ -4,41 +4,176 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HAR ML Prediction</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="bg-grid"></div>
+
     <div class="container">
-        <h1>Human Activity Recognition</h1>
-        <p>Upload a CSV or simulate 561 raw sensor readings. The data will be processed through a live microservice pipeline.</p>
-        
+        <header>
+            <div class="badge">ML · REAL-TIME INFERENCE</div>
+            <h1>Human Activity<br><span class="accent">Recognition</span></h1>
+            <p class="subtitle">561 sensor features → StandardScaler → PCA → SVM · Live microservice inference</p>
+        </header>
+
         <div class="card">
-            <div class="upload-section">
-                <input type="file" id="csvFileInput" accept=".csv" />
-                <button id="predictCsvBtn">Upload CSV & Predict</button>
+            <div class="input-zone">
+                <label class="file-label" for="csvFileInput">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span id="fileLabel">Choose a .csv file</span>
+                    <input type="file" id="csvFileInput" accept=".csv" />
+                </label>
+                <button id="predictCsvBtn" class="btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Run Pipeline
+                </button>
             </div>
-            
-            <p class="divider">OR</p>
-            <button id="predictBtn" class="secondary-btn">Simulate Random Sensor Data</button>
-            
-            <div id="pipelineBox" class="hidden">
-                <h3>Pipeline Execution:</h3>
-                <div class="pipeline-flow">
-                    <div class="step" id="step-raw">1. Raw Sensor Data (561)</div>
-                    <div class="arrow">↓</div>
-                    <div class="step" id="step-scaler">2. StandardScaler (Normalization)</div>
-                    <div class="arrow">↓</div>
-                    <div class="step" id="step-pca">3. PCA (95% Variance)</div>
-                    <div class="arrow">↓</div>
-                    <div class="step" id="step-svm">4. SVM Classifier (RBF Kernel)</div>
+
+            <div class="divider-row"><span>or</span></div>
+
+            <button id="predictBtn" class="btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+                Simulate Random Sensor Data
+            </button>
+        </div>
+
+        <!-- PIPELINE VISUALIZATION -->
+        <div id="pipelineBox" class="hidden pipeline-container">
+
+            <!-- STEP 1: Raw Sensor Data -->
+            <div class="pipeline-step" id="step-raw" data-step="0">
+                <div class="step-header">
+                    <div class="step-num">01</div>
+                    <div class="step-info">
+                        <div class="step-label">Raw Sensor Input</div>
+                        <div class="step-detail">561-dimensional feature vector · Accelerometer + Gyroscope</div>
+                    </div>
+                    <div class="step-status-icon"></div>
+                </div>
+                <div class="step-viz" id="viz-raw">
+                    <canvas id="canvas-raw" width="520" height="80"></canvas>
+                    <div class="viz-legend">
+                        <span class="dot" style="background:#5b8dee"></span>Accelerometer
+                        <span class="dot" style="background:#e85b8d"></span>Gyroscope
+                        <span class="dot" style="background:#5bdea4"></span>Magnitude
+                    </div>
                 </div>
             </div>
-            
-            <div id="resultBox" class="hidden">
-                <h3>Predicted Activity:</h3>
-                <h2 id="activityText">--</h2>
+
+            <div class="connector" id="conn-0">
+                <div class="connector-line"></div>
+                <div class="connector-pulse"></div>
+            </div>
+
+            <!-- STEP 2: StandardScaler -->
+            <div class="pipeline-step" id="step-scaler" data-step="1">
+                <div class="step-header">
+                    <div class="step-num">02</div>
+                    <div class="step-info">
+                        <div class="step-label">StandardScaler</div>
+                        <div class="step-detail">Normalize · μ=0, σ=1 · Removes scale bias</div>
+                    </div>
+                    <div class="step-status-icon"></div>
+                </div>
+                <div class="step-viz" id="viz-scaler">
+                    <div class="scaler-container">
+                        <div class="dist-col">
+                            <div class="dist-label">Before</div>
+                            <canvas id="canvas-before" width="220" height="80"></canvas>
+                        </div>
+                        <div class="transform-arrow">
+                            <svg width="40" height="40" viewBox="0 0 40 40"><path d="M8 20 L28 20 M22 14 L28 20 L22 26" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+                            <div class="transform-label">z-score</div>
+                        </div>
+                        <div class="dist-col">
+                            <div class="dist-label">After</div>
+                            <canvas id="canvas-after" width="220" height="80"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="connector" id="conn-1">
+                <div class="connector-line"></div>
+                <div class="connector-pulse"></div>
+            </div>
+
+            <!-- STEP 3: PCA -->
+            <div class="pipeline-step" id="step-pca" data-step="2">
+                <div class="step-header">
+                    <div class="step-num">03</div>
+                    <div class="step-info">
+                        <div class="step-label">PCA Reduction</div>
+                        <div class="step-detail">561 → ~110 dims · Retaining 95% variance</div>
+                    </div>
+                    <div class="step-status-icon"></div>
+                </div>
+                <div class="step-viz" id="viz-pca">
+                    <div class="pca-container">
+                        <canvas id="canvas-pca" width="260" height="100"></canvas>
+                        <div class="pca-stats">
+                            <div class="pca-stat">
+                                <div class="pca-stat-val" id="pca-dims">561</div>
+                                <div class="pca-stat-key">dimensions in</div>
+                            </div>
+                            <div class="pca-stat pca-arrow-stat">→</div>
+                            <div class="pca-stat">
+                                <div class="pca-stat-val accent" id="pca-out">~110</div>
+                                <div class="pca-stat-key">components out</div>
+                            </div>
+                            <div class="pca-stat">
+                                <div class="pca-stat-val" id="pca-var">95%</div>
+                                <div class="pca-stat-key">variance kept</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="connector" id="conn-2">
+                <div class="connector-line"></div>
+                <div class="connector-pulse"></div>
+            </div>
+
+            <!-- STEP 4: SVM -->
+            <div class="pipeline-step" id="step-svm" data-step="3">
+                <div class="step-header">
+                    <div class="step-num">04</div>
+                    <div class="step-info">
+                        <div class="step-label">SVM Classifier</div>
+                        <div class="step-detail">RBF Kernel · 6-class inference · Champion model</div>
+                    </div>
+                    <div class="step-status-icon"></div>
+                </div>
+                <div class="step-viz" id="viz-svm">
+                    <canvas id="canvas-svm" width="520" height="100"></canvas>
+                    <div class="svm-classes" id="svm-classes">
+                        <span class="svm-class" data-activity="1">Walking</span>
+                        <span class="svm-class" data-activity="2">Upstairs</span>
+                        <span class="svm-class" data-activity="3">Downstairs</span>
+                        <span class="svm-class" data-activity="4">Sitting</span>
+                        <span class="svm-class" data-activity="5">Standing</span>
+                        <span class="svm-class" data-activity="6">Laying</span>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- RESULT -->
+        <div id="resultBox" class="hidden result-card">
+            <div class="result-label">PREDICTED ACTIVITY</div>
+            <div id="activityText" class="result-text">--</div>
+            <div class="result-icon" id="resultIcon"></div>
+            <button id="resetBtn" class="btn-reset">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.91"/></svg>
+                Run Again
+            </button>
+        </div>
     </div>
+
     <script src="app.js"></script>
 </body>
 </html>
